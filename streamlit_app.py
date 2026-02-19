@@ -1,742 +1,616 @@
+"""
+YoY Visitor Entry Flow Dashboard — Streamlit
+Tema claro, diseño moderno con datos sintéticos.
+Run: streamlit run streamlit_app.py
+"""
+
+import math
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
-from datetime import datetime
+import plotly.express as px
+from plotly.subplots import make_subplots
 
-# ─────────────────────────────────────────────
-# PAGE CONFIG
-# ─────────────────────────────────────────────
+# ── Page config ───────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="YoY Entry Dashboard",
-    page_icon="📊",
+    page_title="Visitor Entry Flow · YoY",
+    page_icon="🏬",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-# ─────────────────────────────────────────────
-# CUSTOM CSS
-# ─────────────────────────────────────────────
-st.markdown(
-    """
-    <style>
-        /* ── Global ── */
-        [data-testid="stAppViewContainer"] { background: #0f1923; }
-        [data-testid="stHeader"] { background: transparent; }
-        section[data-testid="stSidebar"] { background: #0f1923; }
+# ── Global CSS ────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-        /* ── Header banner ── */
-        .dash-header {
-            background: linear-gradient(135deg, #1a2e45 0%, #0d2137 60%, #0a1a2e 100%);
-            border: 1px solid #1e4060;
-            border-radius: 12px;
-            padding: 28px 36px 20px;
-            margin-bottom: 28px;
-        }
-        .dash-header h1 {
-            color: #e8f4fd;
-            font-size: 1.85rem;
-            font-weight: 700;
-            margin: 0 0 4px 0;
-            letter-spacing: -0.5px;
-        }
-        .dash-header p {
-            color: #6b9ab8;
-            font-size: 0.9rem;
-            margin: 0;
-        }
+  html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif !important;
+  }
+  .stApp { background: #F5F6FA; }
 
-        /* ── Filter row card ── */
-        .filter-card {
-            background: #132030;
-            border: 1px solid #1e3a55;
-            border-radius: 10px;
-            padding: 18px 24px 8px;
-            margin-bottom: 32px;
-        }
-        .filter-label {
-            color: #4da3d4;
-            font-size: 0.72rem;
-            font-weight: 700;
-            letter-spacing: 1.2px;
-            text-transform: uppercase;
-            margin-bottom: 6px;
-        }
+  /* Hide Streamlit chrome */
+  #MainMenu, footer, header { visibility: hidden; }
+  .block-container { padding: 0 !important; max-width: 100% !important; }
 
-        /* ── Section titles ── */
-        .section-title {
-            color: #c9e0f0;
-            font-size: 1.05rem;
-            font-weight: 700;
-            letter-spacing: 0.4px;
-            padding: 6px 0 14px;
-            border-bottom: 1px solid #1e3a55;
-            margin-bottom: 20px;
-        }
-        .section-badge {
-            display: inline-block;
-            background: #1a3d5c;
-            color: #4da3d4;
-            font-size: 0.68rem;
-            font-weight: 700;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            padding: 3px 10px;
-            border-radius: 20px;
-            margin-right: 10px;
-            border: 1px solid #2a5580;
-            vertical-align: middle;
-        }
+  /* Gradient top accent bar */
+  .top-bar {
+    height: 4px;
+    background: linear-gradient(90deg, #2563EB 0%, #818CF8 55%, #F59E0B 100%);
+    width: 100%;
+  }
 
-        /* ── KPI metric card ── */
-        .kpi-card {
-            background: #132030;
-            border: 1px solid #1e3a55;
-            border-radius: 10px;
-            padding: 20px 22px 16px;
-            text-align: center;
-            height: 100%;
-            transition: border-color 0.2s;
-        }
-        .kpi-card:hover { border-color: #2e6090; }
-        .kpi-label {
-            color: #5a8fad;
-            font-size: 0.72rem;
-            font-weight: 700;
-            letter-spacing: 1.1px;
-            text-transform: uppercase;
-            margin-bottom: 8px;
-        }
-        .kpi-value {
-            color: #e8f4fd;
-            font-size: 2.0rem;
-            font-weight: 800;
-            line-height: 1.1;
-            margin-bottom: 6px;
-            font-variant-numeric: tabular-nums;
-        }
-        .kpi-value.year1 { color: #4da3d4; }
-        .kpi-value.year2 { color: #f5a623; }
-        .kpi-sub {
-            color: #4a7a96;
-            font-size: 0.72rem;
-            margin-top: 4px;
-        }
+  /* Header */
+  .dash-header {
+    background: #FFFFFF;
+    border-bottom: 1px solid #E8EAF0;
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 3px rgba(17,24,39,0.05);
+  }
 
-        /* ── Category breakdown card ── */
-        .cat-card {
-            background: #132030;
-            border: 1px solid #1e3a55;
-            border-radius: 10px;
-            padding: 20px 20px 16px;
-        }
-        .cat-title {
-            font-size: 0.78rem;
-            font-weight: 700;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            margin-bottom: 14px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #1e3a55;
-        }
-        .cat-title.ped  { color: #6bcfb0; }
-        .cat-title.car  { color: #7abde0; }
-        .cat-title.taxi { color: #f0c96b; }
-        .cat-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 7px 0;
-            border-bottom: 1px solid #0d1f30;
-        }
-        .cat-row-label { color: #7aaccb; font-size: 0.8rem; }
-        .cat-row-val   { color: #d0eaf8; font-size: 0.92rem; font-weight: 700;
-                         font-variant-numeric: tabular-nums; }
+  /* Cards */
+  .metric-card {
+    background: #FFFFFF;
+    border: 1px solid #E8EAF0;
+    border-radius: 14px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 3px rgba(17,24,39,0.06), 0 4px 16px rgba(17,24,39,0.04);
+  }
+  .metric-card.accent { border-left: 4px solid #2563EB; }
 
-        /* ── Local filter bar ── */
-        .local-filter-bar {
-            background: #0d1f30;
-            border: 1px solid #1a3450;
-            border-radius: 8px;
-            padding: 12px 16px 4px;
-            margin-bottom: 20px;
-        }
+  .cat-card {
+    background: #FFFFFF;
+    border: 1px solid #E8EAF0;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(17,24,39,0.06), 0 4px 16px rgba(17,24,39,0.04);
+  }
 
-        /* ── Chart container ── */
-        .chart-wrap {
-            background: #132030;
-            border: 1px solid #1e3a55;
-            border-radius: 10px;
-            padding: 20px 16px 8px;
-        }
+  .chart-card {
+    background: #FFFFFF;
+    border: 1px solid #E8EAF0;
+    border-radius: 14px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 3px rgba(17,24,39,0.06), 0 4px 16px rgba(17,24,39,0.04);
+  }
 
-        /* ── Divider ── */
-        .section-divider {
-            border: none;
-            border-top: 1px solid #1a3050;
-            margin: 36px 0 32px;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+  /* Pills */
+  .pill-pos {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700;
+    background: #ECFDF5; color: #059669; border: 1px solid #A7F3D0;
+  }
+  .pill-neg {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700;
+    background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA;
+  }
+  .yr1-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 9px; border-radius: 20px; font-size: 9px; font-weight: 700;
+    background: #EFF6FF; color: #2563EB; text-transform: uppercase;
+  }
+  .yr2-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 9px; border-radius: 20px; font-size: 9px; font-weight: 700;
+    background: #FFFBEB; color: #B45309; text-transform: uppercase;
+  }
 
-# ─────────────────────────────────────────────
-# CONSTANTS & SYNTHETIC DATA
-# ─────────────────────────────────────────────
-MONTH_NAMES = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-]
-MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-ACCESS_POINTS = [
-    "Main Gate", "North Entrance", "South Entrance", "East Gate", "West Gate",
-]
-ENTRY_TYPES = ["Pedestrian", "Car", "Taxi"]
-YEARS = [2021, 2022, 2023, 2024, 2025]
+  /* Section headers */
+  .section-label {
+    font-size: 10px; font-weight: 700; color: #6B7280;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+  }
+  .section-line { flex: 1; height: 1px; background: #E8EAF0; }
 
-COLOR_Y1 = "#4da3d4"   # blue  – Year 1
-COLOR_Y2 = "#f5a623"   # amber – Year 2
+  /* Big numbers */
+  .big-num { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+  .big-num-muted { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: #9CA3AF; }
+  .label-sm { font-size: 10px; font-weight: 700; color: #9CA3AF; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 10px; }
 
-PLOTLY_BASE = dict(
-    paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(color="#7aaccb", family="sans-serif", size=12),
-    margin=dict(l=10, r=10, t=46, b=10),
-    legend=dict(
-        bgcolor="rgba(13,31,48,0.85)",
-        bordercolor="#1e3a55",
-        borderwidth=1,
-        font=dict(color="#a0c8e0", size=11),
-    ),
-    xaxis=dict(gridcolor="#1a3050", linecolor="#1a3050",
-               tickcolor="#1a3050", zerolinecolor="#1a3050"),
-    yaxis=dict(gridcolor="#1a3050", linecolor="#1a3050",
-               tickcolor="#1a3050", zerolinecolor="#1a3050"),
-)
+  /* Streamlit selectbox overrides */
+  div[data-baseweb="select"] {
+    border-radius: 8px !important;
+  }
+  div[data-baseweb="select"] > div {
+    background: #FFFFFF !important;
+    border: 1px solid #E8EAF0 !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+  }
+  label[data-testid="stWidgetLabel"] p {
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    color: #9CA3AF !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.1em !important;
+  }
+</style>
+""", unsafe_allow_html=True)
 
+
+# ── Synthetic Data ────────────────────────────────────────────────────────
+MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+ACCESS_POINTS = ["Gate 1","Gate 3","Plaza Vea","Gate 7","Gate 9"]
+YEARS = [2022, 2023, 2024, 2025, 2026]
+
+def _s(n):
+    x = math.sin(n * 9301 + 49297) * 233280
+    return x - math.floor(x)
+
+def _rng(base, variance, seed):
+    return round(base + (_s(seed) - 0.5) * variance * 2)
 
 @st.cache_data
-def generate_data() -> pd.DataFrame:
-    rng = np.random.default_rng(42)
-    base = {"Pedestrian": 1_400, "Car": 920, "Taxi": 380}
-    ap_mult = {
-        "Main Gate":      2.10,
-        "North Entrance": 1.55,
-        "South Entrance": 1.25,
-        "East Gate":      0.95,
-        "West Gate":      0.70,
-    }
-    y_growth = {2021: 1.00, 2022: 1.07, 2023: 1.15, 2024: 1.24, 2025: 1.33}
-    seasonal = [
-        0.84, 0.87, 0.94, 1.00, 1.06, 1.11,
-        1.14, 1.10, 1.04, 0.97, 0.91, 1.22,
-    ]
-    records = []
-    for year in YEARS:
-        for month in range(1, 13):
-            for ap in ACCESS_POINTS:
-                for et in ENTRY_TYPES:
-                    v = (base[et] * ap_mult[ap]
-                         * y_growth[year] * seasonal[month - 1]
-                         * rng.normal(1.0, 0.055))
-                    records.append({
-                        "year": year,
-                        "month": month,
-                        "month_abbr": MONTH_ABBR[month - 1],
-                        "access_point": ap,
-                        "entry_type": et,
-                        "entries": max(0, int(v)),
-                    })
-    return pd.DataFrame(records)
+def build_raw():
+    raw = {}
+    for yr in YEARS:
+        raw[yr] = {}
+        for mi, m in enumerate(MONTHS):
+            raw[yr][m] = {}
+            for ai, ap in enumerate(ACCESS_POINTS):
+                seed = yr * 1000 + mi * 10 + ai
+                f = 1 + (yr - 2022) * 0.08
+                raw[yr][m][ap] = {
+                    "Pedestrian": _rng(round(90000 * f), 25000, seed + 1),
+                    "Car":        _rng(round(40000 * f), 12000, seed + 2),
+                    "Taxi":       _rng(round(18000 * f), 8000,  seed + 3),
+                }
+    return raw
+
+RAW = build_raw()
+
+def get_ap(yr, month, ap, etype):
+    aps   = ACCESS_POINTS if ap == "All" else [ap]
+    types = ["Pedestrian", "Car", "Taxi"] if etype == "All" else [etype]
+    return sum(RAW[yr][month][a][t] for a in aps for t in types)
+
+def get_ytd(yr, upto, etype="All"):
+    idx = MONTHS.index(upto)
+    return sum(get_ap(yr, m, "All", etype) for m in MONTHS[:idx + 1])
+
+def get_monthly(yr, month, etype="All"):
+    return get_ap(yr, month, "All", etype)
+
+def fmt_full(n): return f"{n:,}"
+def fmt(n):
+    if n >= 1_000_000: return f"{n/1_000_000:.1f}M"
+    if n >= 1_000:     return f"{n/1_000:.0f}K"
+    return str(n)
+def calc_pct(a, b): return round((a - b) / b * 100, 1) if b else 0.0
+
+AP_COLORS = ["#2563EB", "#6366F1", "#F59E0B", "#10B981", "#EF4444"]
+CAT_COLORS = {"Pedestrian": "#6366F1", "Car": "#10B981", "Taxi": "#F59E0B"}
+CAT_BG     = {"Pedestrian": "#EEF2FF", "Car": "#ECFDF5",  "Taxi": "#FFFBEB"}
+CAT_ICONS  = {"Pedestrian": "🚶", "Car": "🚗", "Taxi": "🚕"}
 
 
-df = generate_data()
+# ── Helpers ───────────────────────────────────────────────────────────────
+def delta_pill(val: float) -> str:
+    cls = "pill-pos" if val >= 0 else "pill-neg"
+    arrow = "▲" if val >= 0 else "▼"
+    return f'<span class="{cls}">{arrow} {abs(val)}%</span>'
+
+def section_header(icon: str, label: str):
+    st.markdown(f"""
+    <div class="section-label">
+      <span>{icon}</span><span>{label}</span>
+      <div class="section-line"></div>
+    </div>""", unsafe_allow_html=True)
 
 
-# ─────────────────────────────────────────────
-# HELPERS
-# ─────────────────────────────────────────────
-def fmt(n: int) -> str:
-    return f"{int(n):,}"
+# ── TOP BAR + HEADER ──────────────────────────────────────────────────────
+st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
 
+# Header row with logo + filters
+header_l, header_r = st.columns([3, 2])
 
-def pct_delta(v1: int, v2: int) -> float:
-    return (v2 - v1) / v1 * 100 if v1 else 0.0
-
-
-def delta_color(d: float) -> str:
-    return "#3ecf8e" if d >= 0 else "#e05c5c"
-
-
-def delta_arrow(d: float) -> str:
-    return "▲" if d >= 0 else "▼"
-
-
-# ─────────────────────────────────────────────
-# HEADER
-# ─────────────────────────────────────────────
-st.markdown(
-    """
-    <div class="dash-header">
-        <h1>📊 Year-over-Year Entry Comparison Dashboard</h1>
-        <p>
-            Analyze entry volumes across access points, transport modes, and time
-            periods — select a reference month and two comparison years below.
-        </p>
+with header_l:
+    st.markdown("""
+    <div style="padding: 14px 28px 10px 28px; display:flex; align-items:center; gap:14px;">
+      <div style="background:#EFF6FF; border:1px solid #BFDBFE; border-radius:10px;
+                  padding:7px 11px; text-align:center; line-height:1.2;">
+        <div style="font-size:11px; font-weight:900; color:#2563EB;">JOCKEY</div>
+        <div style="font-size:8px; font-weight:700; color:#2563EB; letter-spacing:.05em;">PLAZA</div>
+      </div>
+      <div>
+        <div style="font-size:18px; font-weight:900; color:#111827; letter-spacing:-0.02em; line-height:1;">
+          VISITOR ENTRY FLOW
+        </div>
+        <div style="font-size:11px; color:#6B7280; margin-top:3px; font-weight:500;">
+          Year-over-Year Comparison &nbsp;·&nbsp; By Access Point
+        </div>
+      </div>
     </div>
-    """,
-    unsafe_allow_html=True,
-)
+    """, unsafe_allow_html=True)
 
-# ─────────────────────────────────────────────
-# GLOBAL FILTERS
-# ─────────────────────────────────────────────
-st.markdown('<div class="filter-card">', unsafe_allow_html=True)
-st.markdown(
-    '<p style="color:#4da3d4;font-size:0.72rem;font-weight:700;'
-    'letter-spacing:1.2px;text-transform:uppercase;margin-bottom:12px;">'
-    "🎚&nbsp; Global Filters</p>",
-    unsafe_allow_html=True,
-)
-fc1, fc2, fc3 = st.columns(3)
+with header_r:
+    st.markdown('<div style="height:10px;"></div>', unsafe_allow_html=True)
+    fc1, fc2, fc3 = st.columns(3)
+    with fc1:
+        year1 = st.selectbox("Year 1", [y for y in YEARS], index=YEARS.index(2026), key="year1")
+    with fc2:
+        yr2_opts = [y for y in YEARS if y != year1]
+        year2 = st.selectbox("Year 2", yr2_opts, index=yr2_opts.index(2024) if 2024 in yr2_opts else 0, key="year2")
+    with fc3:
+        month = st.selectbox("Month", MONTHS, index=0, key="month")
 
-with fc1:
-    st.markdown('<div class="filter-label">Filter 1 — Reference Month</div>',
-                unsafe_allow_html=True)
-    selected_month_name: str = st.selectbox(
-        "month_sel", MONTH_NAMES, index=5, label_visibility="collapsed"
-    )
-    selected_month: int = MONTH_NAMES.index(selected_month_name) + 1
+st.markdown('<div style="height:2px; background:#E8EAF0; margin: 0 0 20px 0;"></div>', unsafe_allow_html=True)
 
-with fc2:
-    st.markdown('<div class="filter-label">Filter 2 — Year 1 (Baseline)</div>',
-                unsafe_allow_html=True)
-    year1: int = st.selectbox(
-        "year1_sel", YEARS, index=2, label_visibility="collapsed"
-    )
+# ── Pre-compute values ────────────────────────────────────────────────────
+ytd1 = get_ytd(year1, month)
+ytd2 = get_ytd(year2, month)
+mo1  = get_monthly(year1, month)
+mo2  = get_monthly(year2, month)
 
-with fc3:
-    st.markdown('<div class="filter-label">Filter 3 — Year 2 (Comparison)</div>',
-                unsafe_allow_html=True)
-    year2: int = st.selectbox(
-        "year2_sel", YEARS, index=3, label_visibility="collapsed"
-    )
+ped1 = get_ytd(year1, month, "Pedestrian")
+ped2 = get_ytd(year2, month, "Pedestrian")
+car1 = get_ytd(year1, month, "Car")
+car2 = get_ytd(year2, month, "Car")
+tax1 = get_ytd(year1, month, "Taxi")
+tax2 = get_ytd(year2, month, "Taxi")
+tot1 = ped1 + car1 + tax1 or 1
 
-st.markdown("</div>", unsafe_allow_html=True)
+# ── SECTION 1 — YTD + Monthly ─────────────────────────────────────────────
+with st.container():
+    st.markdown('<div style="padding: 0 28px;">', unsafe_allow_html=True)
+    section_header("◈", f"Year-to-Date Entries — Jan through {month}")
 
-# ── Derived slices ────────────────────────────
-ytd_y1 = df[(df["year"] == year1) & (df["month"] <= selected_month)]
-ytd_y2 = df[(df["year"] == year2) & (df["month"] <= selected_month)]
-mon_y1 = df[(df["year"] == year1) & (df["month"] == selected_month)]
-mon_y2 = df[(df["year"] == year2) & (df["month"] == selected_month)]
+    col1, col2 = st.columns(2, gap="medium")
 
-ytd_tot_y1 = int(ytd_y1["entries"].sum())
-ytd_tot_y2 = int(ytd_y2["entries"].sum())
-mon_tot_y1 = int(mon_y1["entries"].sum())
-mon_tot_y2 = int(mon_y2["entries"].sum())
-
-
-# ═════════════════════════════════════════════
-# SECTION 1 — YTD ENTRIES
-# ═════════════════════════════════════════════
-st.markdown(
-    f'<div class="section-title">'
-    f'<span class="section-badge">01</span>'
-    f'Year-to-Date Entries &nbsp;·&nbsp; Jan – {selected_month_name}'
-    f'</div>',
-    unsafe_allow_html=True,
-)
-
-s1a, s1b, s1c = st.columns(3)
-
-ytd_diff  = ytd_tot_y2 - ytd_tot_y1
-ytd_pct   = pct_delta(ytd_tot_y1, ytd_tot_y2)
-ytd_color = delta_color(ytd_pct)
-ytd_arrow = delta_arrow(ytd_pct)
-
-with s1a:
-    st.markdown(
-        f"""
-        <div class="kpi-card">
-            <div class="kpi-label">YTD Total &mdash; {year1}</div>
-            <div class="kpi-value year1">{fmt(ytd_tot_y1)}</div>
-            <div class="kpi-sub">Jan &ndash; {selected_month_name} {year1}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-with s1b:
-    st.markdown(
-        f"""
-        <div class="kpi-card">
-            <div class="kpi-label">YTD Total &mdash; {year2}</div>
-            <div class="kpi-value year2">{fmt(ytd_tot_y2)}</div>
-            <div class="kpi-sub">Jan &ndash; {selected_month_name} {year2}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-with s1c:
-    st.markdown(
-        f"""
-        <div class="kpi-card">
-            <div class="kpi-label">YoY Change (YTD)</div>
-            <div class="kpi-value" style="color:{ytd_color};font-size:1.75rem;">
-                {ytd_arrow} {abs(ytd_pct):.1f}%
+    for col, label, v1, v2, accent in [
+        (col1, f"YTD Entries · Jan – {month}",     ytd1, ytd2, True),
+        (col2, f"Monthly Entries · {month} only",  mo1,  mo2,  False),
+    ]:
+        diff = v1 - v2
+        d    = calc_pct(v1, v2)
+        border_left = "border-left: 4px solid #2563EB;" if accent else ""
+        with col:
+            st.markdown(f"""
+            <div class="metric-card" style="{border_left}">
+              <div class="label-sm">{label}</div>
+              <div style="display:flex; gap:24px; align-items:flex-end; flex-wrap:wrap;">
+                <div>
+                  <div class="yr1-tag" style="margin-bottom:8px;">
+                    <div style="width:6px;height:6px;border-radius:50%;background:#2563EB;"></div>
+                    {year1}
+                  </div>
+                  <div class="big-num" style="color:#111827;">{fmt_full(v1)}</div>
+                </div>
+                <div>
+                  <div class="yr2-tag" style="margin-bottom:8px;">
+                    <div style="width:6px;height:6px;border-radius:50%;background:#F59E0B;"></div>
+                    {year2}
+                  </div>
+                  <div class="big-num-muted">{fmt_full(v2)}</div>
+                </div>
+                <div style="margin-left:auto; text-align:right;">
+                  <div style="font-size:10px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;">Difference</div>
+                  <div style="font-size:15px;font-weight:700;color:{'#059669' if diff>=0 else '#DC2626'};margin-bottom:6px;">
+                    {'+'if diff>=0 else ''}{fmt_full(diff)}
+                  </div>
+                  {delta_pill(d)}
+                </div>
+              </div>
             </div>
-            <div class="kpi-sub" style="color:{ytd_color};">
-                {("+" if ytd_diff >= 0 else "")}{fmt(ytd_diff)} entries
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
-st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
+st.markdown('<div style="height:20px;"></div>', unsafe_allow_html=True)
 
-# ═════════════════════════════════════════════
-# SECTION 2 — MONTHLY ENTRIES COMPARISON
-# ═════════════════════════════════════════════
-st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-st.markdown(
-    f'<div class="section-title">'
-    f'<span class="section-badge">02</span>'
-    f'Monthly Entries Comparison &nbsp;·&nbsp; {selected_month_name} Only'
-    f'</div>',
-    unsafe_allow_html=True,
-)
+# ── SECTION 2 — Category Breakdown ────────────────────────────────────────
+with st.container():
+    st.markdown('<div style="padding: 0 28px;">', unsafe_allow_html=True)
+    section_header("◉", "YTD Breakdown by Entry Type")
 
-m_diff  = mon_tot_y2 - mon_tot_y1
-m_pct   = pct_delta(mon_tot_y1, mon_tot_y2)
-m_color = delta_color(m_pct)
-m_arrow = delta_arrow(m_pct)
+    cc1, cc2, cc3 = st.columns(3, gap="medium")
 
-s2a, s2b, s2c, s2d = st.columns(4)
+    for col, cat, v1, v2 in [
+        (cc1, "Pedestrian", ped1, ped2),
+        (cc2, "Car",        car1, car2),
+        (cc3, "Taxi",       tax1, tax2),
+    ]:
+        d      = calc_pct(v1, v2)
+        clr    = CAT_COLORS[cat]
+        bgclr  = CAT_BG[cat]
+        icon   = CAT_ICONS[cat]
+        pct_of = round(v1 / tot1 * 100, 1)
 
-with s2a:
-    st.markdown(
-        f"""
-        <div class="kpi-card">
-            <div class="kpi-label">{selected_month_name} {year1}</div>
-            <div class="kpi-value year1">{fmt(mon_tot_y1)}</div>
-            <div class="kpi-sub">Total entries</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-with s2b:
-    st.markdown(
-        f"""
-        <div class="kpi-card">
-            <div class="kpi-label">{selected_month_name} {year2}</div>
-            <div class="kpi-value year2">{fmt(mon_tot_y2)}</div>
-            <div class="kpi-sub">Total entries</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-with s2c:
-    st.markdown(
-        f"""
-        <div class="kpi-card">
-            <div class="kpi-label">Absolute Change</div>
-            <div class="kpi-value" style="color:{m_color};font-size:1.75rem;">
-                {("+" if m_diff >= 0 else "")}{fmt(m_diff)}
-            </div>
-            <div class="kpi-sub">{year2} vs {year1}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-with s2d:
-    st.markdown(
-        f"""
-        <div class="kpi-card">
-            <div class="kpi-label">% Change</div>
-            <div class="kpi-value" style="color:{m_color};font-size:1.75rem;">
-                {m_arrow} {abs(m_pct):.1f}%
-            </div>
-            <div class="kpi-sub">{year2} vs {year1}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-
-# ═════════════════════════════════════════════
-# SECTION 3 — YTD CATEGORY BREAKDOWN
-# ═════════════════════════════════════════════
-st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-st.markdown(
-    f'<div class="section-title">'
-    f'<span class="section-badge">03</span>'
-    f'YTD Category Breakdown &nbsp;·&nbsp; Pedestrian · Car · Taxi'
-    f'</div>',
-    unsafe_allow_html=True,
-)
-
-cat_configs = [
-    ("Pedestrian", "ped",  "🚶"),
-    ("Car",        "car",  "🚗"),
-    ("Taxi",       "taxi", "🚕"),
-]
-
-cat_cols = st.columns(3)
-for col, (etype, css_cls, icon) in zip(cat_cols, cat_configs):
-    v1 = int(ytd_y1[ytd_y1["entry_type"] == etype]["entries"].sum())
-    v2 = int(ytd_y2[ytd_y2["entry_type"] == etype]["entries"].sum())
-    diff   = v2 - v1
-    pct    = pct_delta(v1, v2)
-    dc     = delta_color(pct)
-    da     = delta_arrow(pct)
-    sh_y1  = (v1 / ytd_tot_y1 * 100) if ytd_tot_y1 else 0
-    sh_y2  = (v2 / ytd_tot_y2 * 100) if ytd_tot_y2 else 0
-
-    with col:
-        st.markdown(
-            f"""
+        with col:
+            st.markdown(f"""
             <div class="cat-card">
-                <div class="cat-title {css_cls}">{icon}&nbsp;&nbsp;{etype}</div>
-
-                <div class="cat-row">
-                    <span class="cat-row-label">{year1} &nbsp;(YTD)</span>
-                    <span class="cat-row-val">{fmt(v1)}</span>
+              <div style="height:4px; background:{clr};"></div>
+              <div style="padding:16px 20px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:22px;">{icon}</span>
+                    <div>
+                      <div style="font-size:11px;font-weight:700;color:#111827;text-transform:uppercase;letter-spacing:.07em;">{cat}</div>
+                      <div style="font-size:10px;color:#9CA3AF;margin-top:1px;">{pct_of}% of total YTD</div>
+                    </div>
+                  </div>
+                  {delta_pill(d)}
                 </div>
-                <div class="cat-row">
-                    <span class="cat-row-label">{year2} &nbsp;(YTD)</span>
-                    <span class="cat-row-val">{fmt(v2)}</span>
+                <div style="display:flex; gap:8px;">
+                  <div style="flex:1; background:{bgclr}; border:1px solid #E8EAF0; border-radius:10px; padding:10px 12px;">
+                    <div style="font-size:9px;font-weight:700;color:{clr};text-transform:uppercase;margin-bottom:4px;">{year1}</div>
+                    <div style="font-size:18px;font-weight:800;color:#111827;letter-spacing:-0.02em;">{fmt_full(v1)}</div>
+                  </div>
+                  <div style="flex:1; background:#F9FAFB; border:1px solid #E8EAF0; border-radius:10px; padding:10px 12px;">
+                    <div style="font-size:9px;font-weight:700;color:#9CA3AF;text-transform:uppercase;margin-bottom:4px;">{year2}</div>
+                    <div style="font-size:18px;font-weight:800;color:#9CA3AF;letter-spacing:-0.02em;">{fmt_full(v2)}</div>
+                  </div>
                 </div>
-                <div class="cat-row">
-                    <span class="cat-row-label">YoY Change</span>
-                    <span class="cat-row-val" style="color:{dc};">
-                        {da} {abs(pct):.1f}%
-                        <small style="font-weight:400;font-size:0.74rem;opacity:0.85;">
-                            &nbsp;({("+" if diff >= 0 else "")}{fmt(diff)})
-                        </small>
-                    </span>
-                </div>
-                <div class="cat-row" style="border:none;padding-top:10px;">
-                    <span class="cat-row-label">Mix share {year1}</span>
-                    <span class="cat-row-val">{sh_y1:.1f}%</span>
-                </div>
-                <div class="cat-row" style="border:none;">
-                    <span class="cat-row-label">Mix share {year2}</span>
-                    <span class="cat-row-val">{sh_y2:.1f}%</span>
-                </div>
+              </div>
             </div>
-            """,
-            unsafe_allow_html=True,
+            """, unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+st.markdown('<div style="height:20px;"></div>', unsafe_allow_html=True)
+
+# ── SECTION 3 — Bar Chart by Access Point ────────────────────────────────
+with st.container():
+    st.markdown('<div style="padding: 0 28px;">', unsafe_allow_html=True)
+    section_header("◐", "Entries by Access Point")
+
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+
+    fh1, fh2, fh3 = st.columns([3, 1, 1])
+    with fh1:
+        st.markdown(f"""
+        <div>
+          <div style="font-size:14px;font-weight:700;color:#111827;">Monthly Comparison by Gate</div>
+          <div style="font-size:10px;color:#6B7280;margin-top:3px;">{month} · Selected filters apply</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with fh2:
+        chart_ap = st.selectbox("Access Point", ["All"] + ACCESS_POINTS, key="chart_ap")
+    with fh3:
+        chart_type = st.selectbox("Entry Type", ["All", "Pedestrian", "Car", "Taxi"], key="chart_type")
+
+    aps_to_show = ACCESS_POINTS if chart_ap == "All" else [chart_ap]
+    bar_data = []
+    for i, ap in enumerate(aps_to_show):
+        bar_data.append({
+            "gate": ap.replace("Gate ", "G"),
+            "full_name": ap,
+            str(year1): get_ap(year1, month, ap, chart_type),
+            str(year2): get_ap(year2, month, ap, chart_type),
+            "color_idx": ACCESS_POINTS.index(ap),
+        })
+    bar_df = pd.DataFrame(bar_data)
+
+    fig_bar = go.Figure()
+    for _, row in bar_df.iterrows():
+        clr = AP_COLORS[int(row["color_idx"]) % len(AP_COLORS)]
+        fig_bar.add_trace(go.Bar(
+            name=str(year1), x=[row["gate"]], y=[row[str(year1)]],
+            marker_color=clr, marker_line_width=0,
+            showlegend=(_ == bar_df.index[0]),
+            legendgroup="yr1",
+        ))
+        fig_bar.add_trace(go.Bar(
+            name=str(year2), x=[row["gate"]], y=[row[str(year2)]],
+            marker_color=clr, marker_opacity=0.3, marker_line_width=0,
+            showlegend=(_ == bar_df.index[0]),
+            legendgroup="yr2",
+        ))
+
+    # Rebuild with proper legends
+    fig_bar = go.Figure()
+    for i, row in bar_df.iterrows():
+        clr = AP_COLORS[int(row["color_idx"]) % len(AP_COLORS)]
+        fig_bar.add_trace(go.Bar(
+            name=f"{row['full_name']} {year1}",
+            x=[row["gate"]], y=[row[str(year1)]],
+            marker_color=clr, marker_line_width=0,
+            legendgroup=row["gate"],
+            showlegend=(i == bar_df.index[0]),
+            text=[fmt(row[str(year1)])], textposition="outside",
+            textfont=dict(size=10, color=clr, family="Inter"),
+        ))
+        fig_bar.add_trace(go.Bar(
+            name=f"{row['full_name']} {year2}",
+            x=[row["gate"]], y=[row[str(year2)]],
+            marker_color=clr, marker_opacity=0.32, marker_line_width=0,
+            legendgroup=row["gate"],
+            showlegend=False,
+            text=[fmt(row[str(year2)])], textposition="outside",
+            textfont=dict(size=10, color="#9CA3AF", family="Inter"),
+        ))
+
+    fig_bar.update_layout(
+        barmode="group", bargap=0.30, bargroupgap=0.06,
+        plot_bgcolor="white", paper_bgcolor="white",
+        height=260, margin=dict(l=0, r=0, t=10, b=10),
+        font=dict(family="Inter", size=11, color="#6B7280"),
+        xaxis=dict(showgrid=False, zeroline=False, showline=False,
+                   tickfont=dict(size=11, color="#6B7280")),
+        yaxis=dict(showgrid=True, gridcolor="#F3F4F6", zeroline=False,
+                   showline=False, tickfont=dict(size=10, color="#9CA3AF"),
+                   tickformat=",.0f"),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
+            font=dict(size=11, color="#6B7280"),
+        ),
+        showlegend=False,
+    )
+
+    # Custom legend via annotation
+    for i, ap in enumerate(aps_to_show):
+        clr = AP_COLORS[ACCESS_POINTS.index(ap) % len(AP_COLORS)]
+        fig_bar.add_annotation(
+            x=0.0 + i * 0.14, y=1.08, xref="paper", yref="paper",
+            text=f"<b>■</b> {ap.replace('Gate ','G')}",
+            font=dict(size=10, color=clr, family="Inter"),
+            showarrow=False, align="left",
         )
 
-st.markdown("<br>", unsafe_allow_html=True)
+    st.plotly_chart(fig_bar, use_container_width=True, config={"displayModeBar": False})
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
+st.markdown('<div style="height:20px;"></div>', unsafe_allow_html=True)
 
-# ═════════════════════════════════════════════
-# SECTION 4 — ENTRIES BY ACCESS POINT
-# ═════════════════════════════════════════════
-st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-st.markdown(
-    f'<div class="section-title">'
-    f'<span class="section-badge">04</span>'
-    f'Entries by Access Point &nbsp;·&nbsp; YTD Jan – {selected_month_name}'
-    f'</div>',
-    unsafe_allow_html=True,
-)
+# ── SECTION 4 — Trend Line Chart ──────────────────────────────────────────
+with st.container():
+    st.markdown('<div style="padding: 0 28px;">', unsafe_allow_html=True)
+    section_header("◷", "Monthly Trend Analysis — Full Year")
 
-# ── Local filters ─────────────────────────────
-st.markdown('<div class="local-filter-bar">', unsafe_allow_html=True)
-st.markdown(
-    '<p style="color:#4da3d4;font-size:0.68rem;font-weight:700;'
-    'letter-spacing:1.1px;text-transform:uppercase;margin-bottom:10px;">'
-    "⚙&nbsp; Local Filters</p>",
-    unsafe_allow_html=True,
-)
-lf1, lf2 = st.columns(2)
-with lf1:
-    sel_ap = st.multiselect(
-        "Access Point",
-        ACCESS_POINTS,
-        default=ACCESS_POINTS,
-        key="lf_ap",
-    )
-with lf2:
-    sel_et = st.multiselect(
-        "Entry Type",
-        ENTRY_TYPES,
-        default=ENTRY_TYPES,
-        key="lf_et",
-    )
-st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
 
-ap_f = sel_ap if sel_ap else ACCESS_POINTS
-et_f = sel_et if sel_et else ENTRY_TYPES
-
-def ap_totals(base_df, aps, ets):
-    filtered = base_df[
-        base_df["access_point"].isin(aps) & base_df["entry_type"].isin(ets)
-    ]
-    return (
-        filtered.groupby("access_point")["entries"]
-        .sum()
-        .reindex(aps, fill_value=0)
-    )
-
-ap_vals_y1 = ap_totals(ytd_y1, ap_f, et_f)
-ap_vals_y2 = ap_totals(ytd_y2, ap_f, et_f)
-
-fig_ap = go.Figure()
-fig_ap.add_trace(go.Bar(
-    name=str(year1),
-    x=ap_f,
-    y=ap_vals_y1.values,
-    marker_color=COLOR_Y1,
-    marker_line_color="rgba(0,0,0,0)",
-    text=[fmt(v) for v in ap_vals_y1.values],
-    textposition="outside",
-    textfont=dict(color=COLOR_Y1, size=11),
-))
-fig_ap.add_trace(go.Bar(
-    name=str(year2),
-    x=ap_f,
-    y=ap_vals_y2.values,
-    marker_color=COLOR_Y2,
-    marker_line_color="rgba(0,0,0,0)",
-    text=[fmt(v) for v in ap_vals_y2.values],
-    textposition="outside",
-    textfont=dict(color=COLOR_Y2, size=11),
-))
-fig_ap.update_layout(
-    **PLOTLY_BASE,
-    barmode="group",
-    bargap=0.22,
-    bargroupgap=0.06,
-    height=400,
-    yaxis_title="Total Entries (YTD)",
-    title=dict(
-        text=(
-            f"YTD Entries by Access Point"
-            f"  ·  Entry types: {', '.join(et_f) if et_f else 'All'}"
-        ),
-        font=dict(color="#a0c8e0", size=13),
-        x=0,
-    ),
-)
-
-st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-st.plotly_chart(fig_ap, use_container_width=True)
-st.markdown("</div>", unsafe_allow_html=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-
-# ═════════════════════════════════════════════
-# SECTION 5 — TREND ANALYSIS LINE CHART
-# ═════════════════════════════════════════════
-st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-st.markdown(
-    f'<div class="section-title">'
-    f'<span class="section-badge">05</span>'
-    f'Trend Analysis &nbsp;·&nbsp; Monthly Entries {year1} vs {year2}'
-    f'</div>',
-    unsafe_allow_html=True,
-)
-
-trend_y1 = (
-    df[df["year"] == year1]
-    .groupby("month")["entries"].sum()
-    .reindex(range(1, 13), fill_value=0)
-)
-trend_y2 = (
-    df[df["year"] == year2]
-    .groupby("month")["entries"].sum()
-    .reindex(range(1, 13), fill_value=0)
-)
-
-fig_trend = go.Figure()
-
-# Year 1 line
-fig_trend.add_trace(go.Scatter(
-    x=MONTH_ABBR,
-    y=trend_y1.values,
-    mode="lines+markers",
-    name=str(year1),
-    line=dict(color=COLOR_Y1, width=2.8),
-    marker=dict(
-        color=COLOR_Y1,
-        size=[11 if m == selected_month else 6 for m in range(1, 13)],
-        symbol=["diamond" if m == selected_month else "circle" for m in range(1, 13)],
-        line=dict(color="#0f1923", width=2),
-    ),
-    fill="tozeroy",
-    fillcolor="rgba(77,163,212,0.08)",
-    hovertemplate=(
-        f"<b>{year1}</b> · %{{x}}"
-        "<br>Entries: <b>%{y:,}</b><extra></extra>"
-    ),
-))
-
-# Year 2 line
-fig_trend.add_trace(go.Scatter(
-    x=MONTH_ABBR,
-    y=trend_y2.values,
-    mode="lines+markers",
-    name=str(year2),
-    line=dict(color=COLOR_Y2, width=2.8),
-    marker=dict(
-        color=COLOR_Y2,
-        size=[11 if m == selected_month else 6 for m in range(1, 13)],
-        symbol=["diamond" if m == selected_month else "circle" for m in range(1, 13)],
-        line=dict(color="#0f1923", width=2),
-    ),
-    fill="tozeroy",
-    fillcolor="rgba(245,166,35,0.08)",
-    hovertemplate=(
-        f"<b>{year2}</b> · %{{x}}"
-        "<br>Entries: <b>%{y:,}</b><extra></extra>"
-    ),
-))
-
-# Reference-month vertical dashed line
-fig_trend.add_vline(
-    x=MONTH_ABBR[selected_month - 1],
-    line_width=1.5,
-    line_dash="dot",
-    line_color="#3a6080",
-    annotation_text=f"  {selected_month_name[:3]}",
-    annotation_font=dict(color="#5a9abf", size=11),
-    annotation_position="top",
-)
-
-fig_trend.update_layout(
-    **PLOTLY_BASE,
-    height=430,
-    hovermode="x unified",
-    yaxis_title="Total Monthly Entries",
-    xaxis_title="Month",
-    title=dict(
-        text=(
-            f"Full-Year Monthly Trend  ·  {year1} vs {year2}"
-            f"  ·  ◆ = {selected_month_name} (reference month)"
-        ),
-        font=dict(color="#a0c8e0", size=13),
-        x=0,
-    ),
-)
-
-st.markdown('<div class="chart-wrap">', unsafe_allow_html=True)
-st.plotly_chart(fig_trend, use_container_width=True)
-st.markdown("</div>", unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────────
-# FOOTER
-# ─────────────────────────────────────────────
-st.markdown("<br>", unsafe_allow_html=True)
-st.markdown(
-    f"""
-    <div style="text-align:center;color:#1e3a55;font-size:0.72rem;
-                padding:12px 0 8px;border-top:1px solid #132030;">
-        YoY Entry Dashboard &nbsp;·&nbsp;
-        Showing data for Jan–{selected_month_name} (YTD) &amp; full-year trend
-        &nbsp;·&nbsp; Comparing <strong style="color:#2a5580;">{year1}</strong>
-        vs <strong style="color:#2a5580;">{year2}</strong>
+    st.markdown(f"""
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:#111827;">Total Entries per Month</div>
+        <div style="font-size:10px;color:#6B7280;margin-top:3px;">
+          Selected month highlighted &nbsp;·&nbsp; Click on the delta row below to change month
+        </div>
+      </div>
+      <div style="display:flex; gap:20px; align-items:center;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <svg width="32" height="12">
+            <line x1="0" y1="6" x2="32" y2="6" stroke="#2563EB" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="16" cy="6" r="4" fill="#2563EB"/>
+          </svg>
+          <span style="font-size:12px;font-weight:700;color:#2563EB;">{year1}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <svg width="32" height="12">
+            <line x1="0" y1="6" x2="32" y2="6" stroke="#F59E0B" stroke-width="2.5"
+              stroke-dasharray="6,3" stroke-linecap="round"/>
+            <circle cx="16" cy="6" r="4" fill="#F59E0B"/>
+          </svg>
+          <span style="font-size:12px;font-weight:700;color:#F59E0B;">{year2}</span>
+        </div>
+      </div>
     </div>
-    """,
-    unsafe_allow_html=True,
-)
+    """, unsafe_allow_html=True)
+
+    trend_data = {
+        "month": MONTHS,
+        str(year1): [get_monthly(year1, m) for m in MONTHS],
+        str(year2): [get_monthly(year2, m) for m in MONTHS],
+    }
+    trend_df = pd.DataFrame(trend_data)
+    sel_idx  = MONTHS.index(month)
+
+    fig_line = go.Figure()
+
+    # Area fill under Y1
+    fig_line.add_trace(go.Scatter(
+        x=MONTHS, y=trend_df[str(year1)],
+        mode="none", fill="tozeroy",
+        fillcolor="rgba(37,99,235,0.07)",
+        showlegend=False, hoverinfo="skip",
+    ))
+
+    # Y1 line
+    fig_line.add_trace(go.Scatter(
+        x=MONTHS, y=trend_df[str(year1)],
+        mode="lines+markers",
+        name=str(year1),
+        line=dict(color="#2563EB", width=2.5),
+        marker=dict(
+            size=[10 if i == sel_idx else 5 for i in range(12)],
+            color=["#2563EB" if i == sel_idx else "white" for i in range(12)],
+            line=dict(color="#2563EB", width=2),
+        ),
+        hovertemplate=f"<b>{year1}</b> %{{x}}: %{{y:,.0f}}<extra></extra>",
+    ))
+
+    # Y2 line
+    fig_line.add_trace(go.Scatter(
+        x=MONTHS, y=trend_df[str(year2)],
+        mode="lines+markers",
+        name=str(year2),
+        line=dict(color="#F59E0B", width=2.5, dash="dot"),
+        marker=dict(
+            size=[10 if i == sel_idx else 5 for i in range(12)],
+            color=["#F59E0B" if i == sel_idx else "white" for i in range(12)],
+            line=dict(color="#F59E0B", width=2),
+        ),
+        hovertemplate=f"<b>{year2}</b> %{{x}}: %{{y:,.0f}}<extra></extra>",
+    ))
+
+    # Vertical reference line for selected month
+    fig_line.add_shape(
+        type="line", x0=month, x1=month,
+        y0=0, y1=1, yref="paper",
+        line=dict(color="#2563EB", width=1.5, dash="dot"),
+    )
+
+    # Data labels for selected month
+    y1_sel = trend_df[str(year1)][sel_idx]
+    y2_sel = trend_df[str(year2)][sel_idx]
+    fig_line.add_annotation(
+        x=month, y=y1_sel, text=f"<b>{fmt(y1_sel)}</b>",
+        font=dict(size=10, color="#2563EB", family="Inter"),
+        showarrow=True, arrowhead=0, ay=-22, ax=0,
+        bgcolor="white", bordercolor="#BFDBFE", borderwidth=1, borderpad=4,
+    )
+    fig_line.add_annotation(
+        x=month, y=y2_sel, text=f"<b>{fmt(y2_sel)}</b>",
+        font=dict(size=10, color="#B45309", family="Inter"),
+        showarrow=True, arrowhead=0, ay=22, ax=0,
+        bgcolor="white", bordercolor="#FDE68A", borderwidth=1, borderpad=4,
+    )
+
+    fig_line.update_layout(
+        plot_bgcolor="white", paper_bgcolor="white",
+        height=240, margin=dict(l=0, r=0, t=20, b=10),
+        font=dict(family="Inter", size=11, color="#6B7280"),
+        xaxis=dict(showgrid=False, zeroline=False, showline=False,
+                   tickfont=dict(size=11, color="#6B7280")),
+        yaxis=dict(showgrid=True, gridcolor="#F3F4F6", zeroline=False,
+                   showline=False, tickfont=dict(size=10, color="#9CA3AF"),
+                   tickformat=",.0f"),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.04, xanchor="right", x=1,
+            font=dict(size=11, color="#6B7280"),
+        ),
+        hovermode="x unified",
+    )
+
+    st.plotly_chart(fig_line, use_container_width=True, config={"displayModeBar": False})
+
+    # ── Delta month row ───────────────────────────────────────────────────
+    st.markdown('<div style="border-top:1px solid #E8EAF0; padding-top:12px; margin-top:4px;">', unsafe_allow_html=True)
+    delta_cols = st.columns(12)
+    for i, (col, m) in enumerate(zip(delta_cols, MONTHS)):
+        v1_m = get_monthly(year1, m)
+        v2_m = get_monthly(year2, m)
+        d    = calc_pct(v1_m, v2_m)
+        pos  = d >= 0
+        sel  = m == month
+        with col:
+            bg      = "#EFF6FF" if sel else "transparent"
+            border  = "1px solid #BFDBFE" if sel else "1px solid transparent"
+            m_color = "#2563EB" if sel else "#6B7280"
+            m_fw    = "700" if sel else "500"
+            d_color = "#059669" if pos else "#DC2626"
+            arr     = "▲" if pos else "▼"
+            st.markdown(f"""
+            <div style="text-align:center; border-radius:8px; padding:6px 2px;
+                        background:{bg}; border:{border}; cursor:pointer;">
+              <div style="font-size:9px; font-weight:{m_fw}; color:{m_color};">{m}</div>
+              <div style="font-size:9px; font-weight:700; color:{d_color}; margin-top:2px;">
+                {arr}{abs(d)}%
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)  # chart-card
+    st.markdown("</div>", unsafe_allow_html=True)  # padding container
+
+# Bottom spacer
+st.markdown('<div style="height:32px;"></div>', unsafe_allow_html=True)
